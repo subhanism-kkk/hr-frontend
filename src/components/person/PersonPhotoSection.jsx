@@ -1,177 +1,215 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Pencil, Plus, Power, Star, Trash2 } from 'lucide-react';
 import { photoApi } from '../../api/personSubServices';
+import { getApiErrorMessage } from '../../api/axios';
+import { photoSchema } from '../../schemas/personSchema';
 
-export const PersonPhotoSection = ({ personId }) => {
+const emptyForm = { filePath: '', isMain: false };
+
+export function PersonPhotoSection({ personId }) {
   const [photos, setPhotos] = useState([]);
-  const [mainPhoto, setMainPhotoState] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [mainPhoto, setMainPhoto] = useState(null);
+  const [formData, setFormData] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const initialFormState = {
-    personId: personId || '',
-    filePath: '',
-    isMain: false
-  };
-
-  const [formData, setFormData] = useState(initialFormState);
-
-  const fetchPhotos = async () => {
-    setLoading(true);
-    setError('');
+  const load = async () => {
     try {
-      const [allRes, mainRes] = await Promise.allSettled([
-        photoApi.getAll({ personId }),
-        photoApi.getMainPhoto(personId)
+      setLoading(true);
+      setError('');
+
+      const [allResult, mainResult] = await Promise.allSettled([
+        photoApi.getAll({ personId, page: 0, size: 100, sort: 'id,asc' }),
+        photoApi.getMainPhoto(personId),
       ]);
 
-      if (allRes.status === 'fulfilled') {
-        setPhotos(allRes.value.data.content || []);
-      }
-      if (mainRes.status === 'fulfilled') {
-        setMainPhotoState(mainRes.value.data);
+      if (allResult.status === 'fulfilled') {
+        setPhotos(allResult.value.data.content || []);
       } else {
-        setMainPhotoState(null);
+        throw allResult.reason;
       }
+
+      setMainPhoto(mainResult.status === 'fulfilled' ? mainResult.value.data : null);
     } catch (err) {
-      setError('Error loading photos.');
+      setError(getApiErrorMessage(err, 'Failed to load photos.'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (personId) {
-      setFormData((prev) => ({ ...prev, personId }));
-      fetchPhotos();
-    }
+    if (personId) load();
   }, [personId]);
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      if (editingId) {
-        await photoApi.update(editingId, formData);
-      } else {
-        await photoApi.create({ ...formData, personId: Number(personId) });
-      }
-      resetForm();
-      fetchPhotos();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save photo record.');
-    }
-  };
-
-  const handleSetMain = async (photoId) => {
-    try {
-      await photoApi.setMainPhoto(photoId);
-      fetchPhotos();
-    } catch (err) {
-      setError('Failed to set main photo.');
-    }
-  };
-
-  const handleToggleStatus = async (item) => {
-    try {
-      if (item.status === 'ACTIVE') {
-        await photoApi.deactivate(item.id);
-      } else {
-        await photoApi.activate(item.id);
-      }
-      fetchPhotos();
-    } catch (err) {
-      setError('Failed to update photo status.');
-    }
-  };
-
-  const handleEdit = (item) => {
-    setEditingId(item.id);
-    setFormData({
-      personId: item.personId || personId,
-      filePath: item.filePath || '',
-      isMain: item.isMain || false
-    });
-  };
-
-  const resetForm = () => {
+  const reset = () => {
+    setFormData(emptyForm);
     setEditingId(null);
-    setFormData({ ...initialFormState, personId });
+    setShowForm(false);
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+
+    const result = photoSchema.safeParse(formData);
+    if (!result.success) {
+      setError(result.error.issues[0].message);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError('');
+
+      if (editingId) {
+        await photoApi.update(editingId, result.data);
+      } else {
+        await photoApi.create({ personId: Number(personId), ...result.data });
+      }
+
+      reset();
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to save photo.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const edit = (photo) => {
+    setEditingId(photo.id);
+    setFormData({
+      filePath: photo.filePath || '',
+      isMain: Boolean(photo.isMain),
+    });
+    setShowForm(true);
+  };
+
+  const setAsMain = async (id) => {
+    try {
+      setError('');
+      await photoApi.setMainPhoto(id);
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to set main photo.'));
+    }
+  };
+
+  const toggleStatus = async (photo) => {
+    try {
+      if (photo.statusName === 'ACTIVE') await photoApi.deactivate(photo.id);
+      else await photoApi.activate(photo.id);
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to change photo status.'));
+    }
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm('Soft delete this photo?')) return;
+
+    try {
+      await photoApi.softDelete(id);
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to delete photo.'));
+    }
   };
 
   return (
-    <div className="section-container">
-      <h3>Person Photos</h3>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
+    <section className="space-y-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Photos</h2>
+          <p className="text-sm text-slate-500">Manage profile photo records and the main photo.</p>
+        </div>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+            <Plus size={16} /> Add Photo
+          </button>
+        )}
+      </div>
+
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {mainPhoto && (
-        <div style={{ marginBottom: '20px', border: '2px solid green', padding: '10px' }}>
-          <h4>Primary Main Photo</h4>
-          <p><strong>Path/URL:</strong> {mainPhoto.filePath}</p>
-          <p><strong>Status:</strong> {mainPhoto.status}</p>
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-indigo-900">
+            <Star size={16} /> Main Photo
+          </div>
+          <p className="mt-2 break-all text-sm text-slate-700">{mainPhoto.filePath}</p>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ marginBottom: '20px' }}>
-        <div>
-          <label>File Path / Image URL: </label>
+      {showForm && (
+        <form onSubmit={submit} className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+          <label className="mb-1 block text-sm font-medium text-slate-700">File Path / URL</label>
           <input
-            type="text"
-            name="filePath"
             value={formData.filePath}
-            onChange={handleInputChange}
-            required
+            onChange={(e) => setFormData({ ...formData, filePath: e.target.value })}
+            maxLength={500}
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+            placeholder="https://..."
           />
-        </div>
 
-        <div>
-          <label>
+          <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
-              name="isMain"
               checked={formData.isMain}
-              onChange={handleInputChange}
+              onChange={(e) => setFormData({ ...formData, isMain: e.target.checked })}
             />
-            Set as Main Photo
+            Set as main photo
           </label>
-        </div>
 
-        <button type="submit">{editingId ? 'Update' : 'Add'} Photo Record</button>
-        {editingId && <button type="button" onClick={resetForm}>Cancel</button>}
-      </form>
+          <div className="mt-4 flex gap-2">
+            <button disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+              {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Add Photo'}
+            </button>
+            <button type="button" onClick={reset} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-white">Cancel</button>
+          </div>
+        </form>
+      )}
 
       {loading ? (
-        <p>Loading photos...</p>
+        <p className="text-sm text-slate-500">Loading photos...</p>
+      ) : photos.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No photos found.</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+        <div className="grid gap-4 md:grid-cols-2">
           {photos.map((photo) => (
-            <div key={photo.id} style={{ border: '1px solid #ccc', padding: '10px', borderRadius: '4px' }}>
-              <p><strong>ID:</strong> {photo.id}</p>
-              <p style={{ wordBreak: 'break-all' }}><strong>Path:</strong> {photo.filePath}</p>
-              <p><strong>Main:</strong> {photo.isMain ? 'Yes ✅' : 'No'}</p>
-              <p><strong>Status:</strong> {photo.status}</p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                {!photo.isMain && (
-                  <button onClick={() => handleSetMain(photo.id)}>Set as Main</button>
+            <div key={photo.id} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-all text-sm font-medium text-slate-800">{photo.filePath}</p>
+                  <p className="mt-1 text-xs text-slate-400">Photo #{photo.id} · {photo.statusName}</p>
+                </div>
+                {photo.isMain && (
+                  <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">Main</span>
                 )}
-                <button onClick={() => handleEdit(photo)}>Edit</button>
-                <button onClick={() => handleToggleStatus(photo)}>
-                  {photo.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-100 pt-3">
+                {!photo.isMain && (
+                  <button onClick={() => setAsMain(photo.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600">
+                    <Star size={14} /> Set Main
+                  </button>
+                )}
+                <button onClick={() => edit(photo)} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                  <Pencil size={14} /> Edit
+                </button>
+                <button onClick={() => toggleStatus(photo)} className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                  <Power size={14} /> {photo.statusName === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                </button>
+                <button onClick={() => remove(photo.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
+                  <Trash2 size={14} /> Delete
                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
-};
+}

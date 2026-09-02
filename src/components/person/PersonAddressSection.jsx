@@ -1,217 +1,186 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Pencil, Plus, RotateCcw, Trash2, Power } from 'lucide-react';
 import { addressApi } from '../../api/personSubServices';
+import { getApiErrorMessage } from '../../api/axios';
+import { addressSchema } from '../../schemas/personSchema';
 
-export const PersonAddressSection = ({ personId }) => {
+export function PersonAddressSection({ personId }) {
   const [addresses, setAddresses] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({ address: '' });
   const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const initialFormState = {
-    personId: personId || '',
-    addressLine: '',
-    city: '',
-    country: '',
-    zipCode: '',
-    addressType: 'HOME'
-  };
-
-  const [formData, setFormData] = useState(initialFormState);
-
-  const fetchAddresses = async () => {
-    setLoading(true);
-    setError('');
+  const load = async () => {
     try {
-      const response = await addressApi.getAll({ personId });
+      setLoading(true);
+      setError('');
+      const response = await addressApi.getAll({ personId, page: 0, size: 100, sort: 'id,asc' });
       setAddresses(response.data.content || []);
     } catch (err) {
-      setError('Failed to retrieve addresses.');
+      setError(getApiErrorMessage(err, 'Failed to load addresses.'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (personId) {
-      setFormData((prev) => ({ ...prev, personId }));
-      fetchAddresses();
-    }
+    if (personId) load();
   }, [personId]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const reset = () => {
+    setEditingId(null);
+    setFormData({ address: '' });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  const submit = async (event) => {
+    event.preventDefault();
+
+    const result = addressSchema.safeParse(formData);
+    if (!result.success) {
+      setError(result.error.issues[0].message);
+      return;
+    }
+
     try {
+      setSaving(true);
+      setError('');
+
       if (editingId) {
-        await addressApi.update(editingId, formData);
+        await addressApi.update(editingId, result.data);
       } else {
-        await addressApi.create({ ...formData, personId: Number(personId) });
+        await addressApi.create({ personId: Number(personId), ...result.data });
       }
-      resetForm();
-      fetchAddresses();
+
+      reset();
+      await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Error processing address record.');
+      setError(getApiErrorMessage(err, 'Failed to save address.'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleEdit = (item) => {
+  const edit = (item) => {
     setEditingId(item.id);
-    setFormData({
-      personId: item.personId || personId,
-      addressLine: item.addressLine || '',
-      city: item.city || '',
-      country: item.country || '',
-      zipCode: item.zipCode || '',
-      addressType: item.addressType || 'HOME'
-    });
+    setFormData({ address: item.address || '' });
   };
 
-  const resetForm = () => {
-    setEditingId(null);
-    setFormData({ ...initialFormState, personId });
-  };
-
-  const handleToggleStatus = async (item) => {
+  const toggleStatus = async (item) => {
     try {
-      if (item.status === 'ACTIVE') {
+      setError('');
+      if (item.statusName === 'ACTIVE') {
         await addressApi.deactivate(item.id);
       } else {
         await addressApi.activate(item.id);
       }
-      fetchAddresses();
+      await load();
     } catch (err) {
-      setError('Failed to update address status.');
+      setError(getApiErrorMessage(err, 'Failed to change address status.'));
     }
   };
 
-  const handleSoftDelete = async (id) => {
+  const remove = async (id) => {
     if (!window.confirm('Soft delete this address?')) return;
+
     try {
+      setError('');
       await addressApi.softDelete(id);
-      fetchAddresses();
+      await load();
     } catch (err) {
-      setError('Failed to soft delete address.');
+      setError(getApiErrorMessage(err, 'Failed to delete address.'));
     }
   };
 
-  const handleRestore = async (id) => {
+  const restore = async (id) => {
     try {
+      setError('');
       await addressApi.restore(id);
-      fetchAddresses();
+      await load();
     } catch (err) {
-      setError('Failed to restore address.');
+      setError(getApiErrorMessage(err, 'Failed to restore address.'));
     }
   };
 
   return (
-    <div className="section-container">
-      <h3>Address Management</h3>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
+    <section className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Addresses</h2>
+        <p className="text-sm text-slate-500">Manage addresses associated with this person.</p>
+      </div>
 
-      <form onSubmit={handleSubmit} style={{ marginBottom: '20px' }}>
-        <div>
-          <label>Address Line: </label>
-          <input
-            type="text"
-            name="addressLine"
-            value={formData.addressLine}
-            onChange={handleInputChange}
-            required
-          />
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      <form onSubmit={submit} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <label className="mb-1 block text-sm font-medium text-slate-700">Address</label>
+        <textarea
+          value={formData.address}
+          onChange={(e) => setFormData({ address: e.target.value })}
+          maxLength={500}
+          rows={3}
+          placeholder="Enter the full address"
+          className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+        />
+
+        <div className="mt-3 flex gap-2">
+          <button
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+          >
+            <Plus size={16} />
+            {saving ? 'Saving...' : editingId ? 'Update Address' : 'Add Address'}
+          </button>
+
+          {editingId && (
+            <button type="button" onClick={reset} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-white">
+              Cancel
+            </button>
+          )}
         </div>
-
-        <div>
-          <label>City: </label>
-          <input
-            type="text"
-            name="city"
-            value={formData.city}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-
-        <div>
-          <label>Country: </label>
-          <input
-            type="text"
-            name="country"
-            value={formData.country}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-
-        <div>
-          <label>Zip Code: </label>
-          <input
-            type="text"
-            name="zipCode"
-            value={formData.zipCode}
-            onChange={handleInputChange}
-          />
-        </div>
-
-        <div>
-          <label>Address Type: </label>
-          <select name="addressType" value={formData.addressType} onChange={handleInputChange}>
-            <option value="HOME">Home</option>
-            <option value="WORK">Work</option>
-            <option value="REGISTRATION">Registration</option>
-          </select>
-        </div>
-
-        <button type="submit">{editingId ? 'Update' : 'Add'} Address</button>
-        {editingId && <button type="button" onClick={resetForm}>Cancel</button>}
       </form>
 
       {loading ? (
-        <p>Loading addresses...</p>
+        <p className="text-sm text-slate-500">Loading addresses...</p>
+      ) : addresses.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+          No addresses found.
+        </div>
       ) : (
-        <table border="1" cellPadding="8" style={{ width: '100%' }}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Address Line</th>
-              <th>City</th>
-              <th>Country</th>
-              <th>Zip Code</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {addresses.map((item) => (
-              <tr key={item.id} style={{ opacity: item.isDeleted ? 0.5 : 1 }}>
-                <td>{item.id}</td>
-                <td>{item.addressLine}</td>
-                <td>{item.city}</td>
-                <td>{item.country}</td>
-                <td>{item.zipCode}</td>
-                <td>{item.addressType}</td>
-                <td>{item.status}</td>
-                <td>
-                  <button onClick={() => handleEdit(item)}>Edit</button>
-                  <button onClick={() => handleToggleStatus(item)}>
-                    {item.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+        <div className="space-y-3">
+          {addresses.map((item) => (
+            <div key={item.id} className={`rounded-xl border p-4 ${item.statusName === 'ACTIVE' ? 'border-slate-200' : 'border-amber-200 bg-amber-50/40'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="whitespace-pre-wrap text-sm text-slate-800">{item.address}</p>
+                  <p className="mt-2 text-xs text-slate-400">Address #{item.id}</p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.statusName === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                  {item.statusName}
+                </span>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                <button onClick={() => edit(item)} className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                  <Pencil size={14} /> Edit
+                </button>
+                <button onClick={() => toggleStatus(item)} className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600 hover:text-amber-800">
+                  <Power size={14} /> {item.statusName === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                </button>
+                {item.statusName === 'DELETED' ? (
+                  <button onClick={() => restore(item.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <RotateCcw size={14} /> Restore
                   </button>
-                  {!item.isDeleted ? (
-                    <button onClick={() => handleSoftDelete(item.id)}>Soft Delete</button>
-                  ) : (
-                    <button onClick={() => handleRestore(item.id)}>Restore</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                ) : (
+                  <button onClick={() => remove(item.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
+                    <Trash2 size={14} /> Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
-    </div>
+    </section>
   );
-};
+}

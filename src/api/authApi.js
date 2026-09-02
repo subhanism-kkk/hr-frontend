@@ -1,6 +1,21 @@
-import { serverOne } from './axios';
+import { authServer } from './axios';
 
 export const loginRequest = async (credentials) => {
-  const response = await serverOne.post('/auth/login', credentials);
-  return response.data; // Returns token or user details
+  const response = await authServer.post('/auth/login', credentials);
+  return response.data;
+};
+
+export const checkAccess = async ({ url, method }) => {
+  const response = await authServer.post('/auth/check-access', {
+    url,
+    method,
+  });
+  return response.data;
+};
+
+export const changeRole = async (userGroupId) => {
+  const response = await authServer.post('/auth/change-role', {
+    userGroupId,
+  });
+  return response.data;
 };

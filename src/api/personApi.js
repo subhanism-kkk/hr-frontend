@@ -1,39 +1,58 @@
-import { serverTwo } from './axios';
+import { hrmsServer } from './axios';
 
-export const fetchPersons = async (page = 0, size = 10) => {
-  const response = await serverTwo.get(`/persons?page=${page}&size=${size}`);
+export const fetchPersons = async ({
+  page = 0,
+  size = 10,
+  search = '',
+  status = '',
+  createdFrom = '',
+  createdTo = '',
+  sort = 'id,asc',
+} = {}) => {
+  const response = await hrmsServer.get('/persons', {
+    params: {
+      page,
+      size,
+      sort,
+      ...(search && { search }),
+      ...(status && { status }),
+      ...(createdFrom && { createdFrom }),
+      ...(createdTo && { createdTo }),
+    },
+  });
+
   return response.data;
 };
 
 export const fetchPersonById = async (id) => {
-  const response = await serverTwo.get(`/persons/${id}`);
+  const response = await hrmsServer.get(`/persons/${id}`);
   return response.data;
 };
 
 export const createPerson = async (data) => {
-  const response = await serverTwo.post('/persons', data);
+  const response = await hrmsServer.post('/persons', data);
   return response.data;
 };
 
 export const updatePerson = async (id, data) => {
-  const response = await serverTwo.put(`/persons/${id}`, data);
+  const response = await hrmsServer.put(`/persons/${id}`, data);
   return response.data;
 };
 
 export const activatePerson = async (id) => {
-  const response = await serverTwo.patch(`/persons/${id}/activate`);
+  const response = await hrmsServer.patch(`/persons/${id}/activate`);
   return response.data;
 };
 
 export const deactivatePerson = async (id) => {
-  const response = await serverTwo.patch(`/persons/${id}/deactivate`);
+  const response = await hrmsServer.patch(`/persons/${id}/deactivate`);
   return response.data;
 };
 
 export const softDeletePerson = async (id) => {
-  await serverTwo.delete(`/persons/${id}`);
+  await hrmsServer.delete(`/persons/${id}`);
 };
 
 export const restorePerson = async (id) => {
-  await serverTwo.patch(`/persons/${id}/restore`);
+  await hrmsServer.patch(`/persons/${id}/restore`);
 };
