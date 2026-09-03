@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Pencil, Plus, Trash2, Search, RefreshCw, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, Search, RefreshCw, X, Power } from 'lucide-react';
 
 import { bonusTypeApi } from '../../api/bonusTypeApi';
 import { getApiErrorMessage } from '../../api/axios';
@@ -20,7 +20,11 @@ export function BonusTypesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Debounce search input to avoid spamming requests on every keystroke
+  // Extract status string safely across convention types
+  const getStatus = (item) => {
+    return (item?.statusName || item?.status || '').toString().toUpperCase();
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(0);
@@ -39,8 +43,7 @@ export function BonusTypesPage() {
         page,
         size: pageSize,
         sort: 'id,asc',
-        keyword: activeSearch.trim() || undefined,
-        search: activeSearch.trim() || undefined,
+        name: activeSearch.trim() || undefined,
       });
 
       setItems(response.content || []);
@@ -77,14 +80,32 @@ export function BonusTypesPage() {
     load();
   };
 
-  const remove = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this bonus type?')) {
-      return;
+  // Status Toggle matching PersonsPage logic
+  const toggleStatus = async (item) => {
+    try {
+      setError('');
+      const status = getStatus(item);
+      const isActive = status === 'ACTIVE' || item.statusId === 1;
+
+      if (isActive) {
+        await bonusTypeApi.deactivate(item.id);
+      } else {
+        await bonusTypeApi.activate(item.id);
+      }
+
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to change bonus type status.'));
     }
+  };
+
+  // Only the Delete button performs a soft-delete
+  const remove = async (item) => {
+    if (!window.confirm(`Delete bonus type "${item.name}"?`)) return;
 
     try {
       setError('');
-      await bonusTypeApi.softDelete(id);
+      await bonusTypeApi.softDelete(item.id);
       await load();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to delete bonus type.'));
@@ -158,44 +179,77 @@ export function BonusTypesPage() {
                 <th className="px-6 py-4">ID</th>
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Description</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((item) => (
-                <tr
-                  key={item.id}
-                  className="transition-colors hover:bg-slate-50/60"
-                >
-                  <td className="px-6 py-4 font-mono text-xs text-slate-400">
-                    #{item.id}
-                  </td>
-                  <td className="px-6 py-4 font-semibold text-slate-900">
-                    {item.name}
-                  </td>
-                  <td className="max-w-lg px-6 py-4 text-slate-500 truncate">
-                    {item.description || <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => handleOpenEdit(item)}
-                        title="Edit"
-                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+              {items.map((item) => {
+                const status = getStatus(item);
+                const isActive = status === 'ACTIVE' || (!status && !item.isDeleted);
+
+                return (
+                  <tr
+                    key={item.id}
+                    className="transition-colors hover:bg-slate-50/60"
+                  >
+                    <td className="px-6 py-4 font-mono text-xs text-slate-400">
+                      #{item.id}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">
+                      {item.name}
+                    </td>
+                    <td className="max-w-lg px-6 py-4 text-slate-500 truncate">
+                      {item.description || <span className="text-slate-300">—</span>}
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          isActive
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
                       >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => remove(item.id)}
-                        title="Delete"
-                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+
+                    {/* Actions Column */}
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-4">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(item)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                          <Pencil size={14} />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(item)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700"
+                        >
+                          <Power size={14} />
+                          <span>{isActive ? 'Deactivate' : 'Activate'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => remove(item)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 size={14} />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

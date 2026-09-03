@@ -59,6 +59,7 @@ export function BonusTypesForm({ initialData, onClose, onSuccess }) {
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-200/60 hover:text-slate-600 transition-colors"
           >
@@ -125,6 +126,7 @@ export function BonusTypesForm({ initialData, onClose, onSuccess }) {
               Cancel
             </button>
             <button
+              type="submit"
               disabled={saving}
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-700 disabled:opacity-60 transition-colors"
             >

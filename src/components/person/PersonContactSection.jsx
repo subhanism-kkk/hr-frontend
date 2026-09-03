@@ -6,6 +6,17 @@ import { contactSchema } from '../../schemas/personSchema';
 
 const emptyForm = { contactTypeId: '', contactValue: '', isPrimary: false };
 
+const getStatusString = (item) => {
+  const rawStatus =
+    item?.statusName ||
+    item?.statusCode ||
+    item?.status?.code ||
+    item?.status?.name ||
+    item?.status ||
+    '';
+  return String(rawStatus).toUpperCase();
+};
+
 export function PersonContactSection({ personId }) {
   const [contacts, setContacts] = useState([]);
   const [contactTypes, setContactTypes] = useState([]);
@@ -21,7 +32,7 @@ export function PersonContactSection({ personId }) {
       setLoading(true);
       setError('');
       const response = await contactApi.getAll({ personId, page: 0, size: 100, sort: 'id,asc' });
-      setContacts(response.data.content || []);
+      setContacts(response.content || response.data?.content || []);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load contacts.'));
     } finally {
@@ -32,7 +43,8 @@ export function PersonContactSection({ personId }) {
   const loadTypes = async () => {
     try {
       const response = await contactTypeApi.getAll({ page: 0, size: 100, sort: 'id,asc' });
-      setContactTypes(response.data.content || []);
+      const list = response.content || response.data?.content || [];
+      setContactTypes(list);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to load contact types.'));
     }
@@ -91,7 +103,8 @@ export function PersonContactSection({ personId }) {
 
   const toggleStatus = async (item) => {
     try {
-      if (item.statusName === 'ACTIVE') await contactApi.deactivate(item.id);
+      const status = getStatusString(item);
+      if (status === 'ACTIVE') await contactApi.deactivate(item.id);
       else await contactApi.activate(item.id);
       await load();
     } catch (err) {
@@ -108,6 +121,11 @@ export function PersonContactSection({ personId }) {
       setError(getApiErrorMessage(err, 'Failed to delete contact.'));
     }
   };
+
+  // Only show ACTIVE contact types in creation dropdown (preserve currently selected type if editing)
+  const availableTypes = contactTypes.filter(
+    (type) => getStatusString(type) === 'ACTIVE' || Number(type.id) === Number(formData.contactTypeId)
+  );
 
   return (
     <section className="space-y-5">
@@ -135,7 +153,11 @@ export function PersonContactSection({ personId }) {
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
             >
               <option value="">Select contact type</option>
-              {contactTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
+              {availableTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name} {getStatusString(type) !== 'ACTIVE' ? ' (Inactive)' : ''}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -176,6 +198,9 @@ export function PersonContactSection({ personId }) {
           <div className="divide-y divide-slate-100">
             {contacts.map((item) => {
               const type = contactTypes.find((x) => x.id === item.contactTypeId);
+              const status = getStatusString(item);
+              const isActive = status === 'ACTIVE';
+
               return (
                 <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 p-4">
                   <div>
@@ -183,11 +208,15 @@ export function PersonContactSection({ personId }) {
                       <span className="font-medium text-slate-900">{item.contactValue}</span>
                       {item.isPrimary && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">Primary</span>}
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">{type?.name || `Contact type #${item.contactTypeId}`} · {item.statusName}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {type?.name || `Contact type #${item.contactTypeId}`} · {item.statusName || status}
+                    </p>
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => edit(item)} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600"><Pencil size={14} /> Edit</button>
-                    <button onClick={() => toggleStatus(item)} className="inline-flex items-center gap-1 text-xs font-medium text-amber-600"><Power size={14} /> {item.statusName === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
+                    <button onClick={() => toggleStatus(item)} className={`inline-flex items-center gap-1 text-xs font-medium ${isActive ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      <Power size={14} /> {isActive ? 'Deactivate' : 'Activate'}
+                    </button>
                     <button onClick={() => remove(item.id)} className="inline-flex items-center gap-1 text-xs font-medium text-red-600"><Trash2 size={14} /> Delete</button>
                   </div>
                 </div>

@@ -21,6 +21,19 @@ export const orderTypeApi = {
     return response.data;
   },
 
+  getActiveOptions: async () => {
+    const response = await hrmsServer.get('/order-types/options');
+    return response.data;
+  },
+
+  activate: async (id) => {
+    await hrmsServer.patch(`/order-types/${id}/activate`);
+  },
+
+  deactivate: async (id) => {
+    await hrmsServer.patch(`/order-types/${id}/deactivate`);
+  },
+
   softDelete: async (id) => {
     await hrmsServer.delete(`/order-types/${id}`);
   },
@@ -29,3 +42,8 @@ export const orderTypeApi = {
     await hrmsServer.patch(`/order-types/${id}/restore`);
   },
 };
+
+// Named export compatibility helper for form drop-downs
+export const getOrderTypes = (params) => orderTypeApi.getAll(params);
+
+export default orderTypeApi;

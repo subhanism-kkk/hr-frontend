@@ -21,6 +21,19 @@ export const bonusTypeApi = {
     return response.data;
   },
 
+  getActiveOptions: async () => {
+    const response = await hrmsServer.get('/bonus-types/options');
+    return response.data;
+  },
+
+  activate: async (id) => {
+    await hrmsServer.patch(`/bonus-types/${id}/activate`);
+  },
+
+  deactivate: async (id) => {
+    await hrmsServer.patch(`/bonus-types/${id}/deactivate`);
+  },
+
   softDelete: async (id) => {
     await hrmsServer.delete(`/bonus-types/${id}`);
   },

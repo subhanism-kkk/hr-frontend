@@ -18,6 +18,17 @@ const PAGE_SIZE = 10;
 const EMPTY_FORM = { name: '', description: '' };
 const INITIAL_FILTERS = { search: '', name: '', description: '', status: '' };
 
+const getStatusString = (position) => {
+  const rawStatus =
+    position?.statusName ||
+    position?.statusCode ||
+    position?.status?.code ||
+    position?.status?.name ||
+    position?.status ||
+    '';
+  return String(rawStatus).toUpperCase();
+};
+
 export default function PositionsPage() {
   const [positions, setPositions] = useState([]);
   const [statuses, setStatuses] = useState([]);
@@ -87,12 +98,10 @@ export default function PositionsPage() {
     []
   );
 
-  // Initial load for static data
   useEffect(() => {
     loadStatuses();
   }, []);
 
-  // Debounced auto-search triggers whenever filters change (including initial mount)
   useEffect(() => {
     const timer = setTimeout(() => {
       loadPositions(0, filters);
@@ -154,7 +163,7 @@ export default function PositionsPage() {
       }
 
       closeForm();
-      await loadPositions(page, filters);
+      await loadPositions(pagination.page, filters);
     } catch (err) {
       setModalError(getApiErrorMessage(err, 'Failed to save position.'));
     } finally {
@@ -165,12 +174,15 @@ export default function PositionsPage() {
   const handleStatusToggle = async (position) => {
     try {
       setError('');
-      if (position.statusName === 'ACTIVE') {
+      const status = getStatusString(position);
+
+      if (status === 'ACTIVE') {
         await positionApi.deactivate(position.id);
       } else {
         await positionApi.activate(position.id);
       }
-      await loadPositions(page, filters);
+
+      await loadPositions(pagination.page, filters);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to change position status.'));
     }
@@ -182,7 +194,7 @@ export default function PositionsPage() {
     try {
       setError('');
       await positionApi.softDelete(id);
-      await loadPositions(page, filters);
+      await loadPositions(pagination.page, filters);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to delete position.'));
     }
@@ -192,7 +204,7 @@ export default function PositionsPage() {
     try {
       setError('');
       await positionApi.restore(id);
-      await loadPositions(page, filters);
+      await loadPositions(pagination.page, filters);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to restore position.'));
     }
@@ -311,66 +323,69 @@ export default function PositionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  positions.map((position) => (
-                    <tr key={position.id} className="transition hover:bg-slate-50">
-                      <td className="px-5 py-4 font-mono text-sm text-slate-500">#{position.id}</td>
-                      <td className="px-5 py-4 font-medium text-slate-900">{position.name}</td>
-                      <td className="max-w-md px-5 py-4 text-sm text-slate-500">{position.description}</td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            position.statusName === 'ACTIVE'
-                              ? 'bg-green-100 text-green-700'
-                              : position.statusName === 'DELETED'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {position.statusName}
-                        </span>
-                      </td>
+                  positions.map((position) => {
+                    const status = getStatusString(position);
+                    return (
+                      <tr key={position.id} className="transition hover:bg-slate-50">
+                        <td className="px-5 py-4 font-mono text-sm text-slate-500">#{position.id}</td>
+                        <td className="px-5 py-4 font-medium text-slate-900">{position.name}</td>
+                        <td className="max-w-md px-5 py-4 text-sm text-slate-500">{position.description}</td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              status === 'ACTIVE'
+                                ? 'bg-green-100 text-green-700'
+                                : status === 'DELETED'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {position.statusName || status || 'INACTIVE'}
+                          </span>
+                        </td>
 
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-3">
-                          {position.statusName === 'DELETED' ? (
-                            <button
-                              onClick={() => handleRestore(position.id)}
-                              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-800"
-                            >
-                              <RotateCcw size={14} />
-                              Restore
-                            </button>
-                          ) : (
-                            <>
+                        <td className="px-5 py-4">
+                          <div className="flex justify-end gap-3">
+                            {status === 'DELETED' ? (
                               <button
-                                onClick={() => openEdit(position)}
-                                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                                onClick={() => handleRestore(position.id)}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-800"
                               >
-                                <Pencil size={14} />
-                                Edit
+                                <RotateCcw size={14} />
+                                Restore
                               </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => openEdit(position)}
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
+                                >
+                                  <Pencil size={14} />
+                                  Edit
+                                </button>
 
-                              <button
-                                onClick={() => handleStatusToggle(position)}
-                                className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-800"
-                              >
-                                <Power size={14} />
-                                {position.statusName === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                              </button>
+                                <button
+                                  onClick={() => handleStatusToggle(position)}
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-800"
+                                >
+                                  <Power size={14} />
+                                  {status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                                </button>
 
-                              <button
-                                onClick={() => handleDelete(position.id)}
-                                className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 size={14} />
-                                Delete
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                                <button
+                                  onClick={() => handleDelete(position.id)}
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-800"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

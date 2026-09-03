@@ -21,6 +21,16 @@ export const contactTypeApi = {
     return response.data;
   },
 
+  activate: async (id) => {
+    const response = await hrmsServer.patch(`/contact-types/${id}/activate`);
+    return response.data;
+  },
+
+  deactivate: async (id) => {
+    const response = await hrmsServer.patch(`/contact-types/${id}/deactivate`);
+    return response.data;
+  },
+
   softDelete: async (id) => {
     await hrmsServer.delete(`/contact-types/${id}`);
   },

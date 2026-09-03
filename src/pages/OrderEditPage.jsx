@@ -1,18 +1,17 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  FilePlus,
+  Edit3,
   Layers,
-  Send,
+  Save,
   Calendar,
   FileText,
-  MousePointerClick,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 
-import { createOrder } from "../api/orderApi";
-import { orderTypeApi } from "../api/orderTypeApi";
+import { getOrderDetails, updateOrder } from "../api/orderApi";
 
 import AppointmentForm from "../components/order/AppointmentForm";
 import DismissalForm from "../components/order/DismissalForm";
@@ -32,76 +31,102 @@ const getTodayLocalDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-export default function OrderCreatePage() {
+/**
+ * Recursively normalizes nested backend entities so inputs relying on
+ * entity IDs (e.g. personId, leaveTypeId) or original objects can bind smoothly.
+ */
+const normalizeFormData = (obj) => {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    return obj;
+  }
+
+  const result = { ...obj };
+
+  Object.entries(obj).forEach(([key, val]) => {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      // Recursively process deeper objects first
+      const processedNestedObj = normalizeFormData(val);
+      result[key] = processedNestedObj;
+
+      // Extract 'id' to create corresponding '*Id' property (e.g. person -> personId)
+      if ("id" in processedNestedObj && processedNestedObj.id !== undefined) {
+        const idKey = `${key}Id`;
+        if (result[idKey] === undefined || result[idKey] === null) {
+          result[idKey] = processedNestedObj.id;
+        }
+      }
+    }
+  });
+
+  return result;
+};
+
+export default function OrderEditPage() {
+  const { id } = useParams();
   const navigate = useNavigate();
 
-  const [orderTypes, setOrderTypes] = useState([]);
-  const [orderTypeId, setOrderTypeId] = useState("");
+  const [order, setOrder] = useState(null);
   const [orderDate, setOrderDate] = useState("");
   const [data, setData] = useState({});
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const today = getTodayLocalDate();
 
   useEffect(() => {
-    const loadOrderTypes = async () => {
+    const fetchOrder = async () => {
       try {
-        let response;
-        try {
-          response = await orderTypeApi.getActiveOptions();
-        } catch {
-          response = await orderTypeApi.getAll({
-            page: 0,
-            size: 100,
-          });
+        setLoading(true);
+        const response = await getOrderDetails(id);
+        setOrder(response);
+
+        if (response.orderDate) {
+          setOrderDate(response.orderDate);
         }
 
-        const list = Array.isArray(response) ? response : response?.content || [];
+        // Extract sub-form data array or object
+        const rawSubData =
+          Array.isArray(response.data) && response.data.length > 0
+            ? response.data[0]
+            : response.data || {};
 
-        // Strictly filter for active order types
-        const activeTypes = list.filter((type) => {
-          if (type.isDeleted) return false;
+        // Recursively normalize sub-form data
+        const normalizedData = normalizeFormData(rawSubData);
 
-          const statusStr = (type.statusName || type.status || "").toString().toUpperCase();
-          if (statusStr) return statusStr === "ACTIVE";
-
-          if (typeof type.isActive === "boolean") return type.isActive === true;
-          if (type.statusId !== undefined && type.statusId !== null) return Number(type.statusId) === 1;
-
-          return true;
-        });
-
-        setOrderTypes(activeTypes);
+        setData(normalizedData);
       } catch (error) {
-        console.error("Failed to load order types:", error);
+        console.error("Failed to fetch order details:", error);
+        setErrorMessage("Failed to load order details for editing.");
       } finally {
         setLoading(false);
       }
     };
 
-    loadOrderTypes();
-  }, []);
-
-  const selectedOrderType = orderTypes.find(
-    (type) => type.id === Number(orderTypeId)
-  );
-
-  const handleOrderTypeChange = (event) => {
-    const value = event.target.value;
-    setOrderTypeId(value);
-    setData({});
-  };
+    if (id) {
+      fetchOrder();
+    }
+  }, [id]);
 
   const handleDataChange = (newData) => {
     setData(newData || {});
   };
 
-  const renderOrderForm = () => {
-    if (!selectedOrderType) return null;
+  const getOrderTypeCode = () => {
+    return order?.orderType?.code || order?.orderTypeCode || "";
+  };
 
-    switch (selectedOrderType.code) {
+  const getOrderTypeName = () => {
+    return (
+      order?.orderType?.name || order?.orderTypeName || getOrderTypeCode()
+    );
+  };
+
+  const renderOrderForm = () => {
+    const code = getOrderTypeCode();
+
+    switch (code) {
       case "APT":
         return <AppointmentForm value={data} onChange={handleDataChange} />;
       case "DIS":
@@ -125,7 +150,7 @@ export default function OrderCreatePage() {
           <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <AlertCircle size={18} className="shrink-0 text-amber-600" />
             <span>
-              Unsupported order type: <strong>{selectedOrderType.code}</strong>
+              Unsupported order type: <strong>{code || "Unknown"}</strong>
             </span>
           </div>
         );
@@ -134,16 +159,6 @@ export default function OrderCreatePage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-
-    if (!orderTypeId) {
-      alert("Please select an order type.");
-      return;
-    }
-
-    if (!selectedOrderType) {
-      alert("Please select a valid order type.");
-      return;
-    }
 
     if (!orderDate) {
       alert("Please select an order date.");
@@ -156,7 +171,7 @@ export default function OrderCreatePage() {
     }
 
     if (!data || Object.keys(data).length === 0) {
-      alert("Please fill in the order details.");
+      alert("Please fill in the required order details.");
       return;
     }
 
@@ -164,15 +179,14 @@ export default function OrderCreatePage() {
       setSubmitting(true);
 
       const payload = {
-        orderTypeId: Number(orderTypeId),
         orderDate,
         data: [data],
       };
 
-      const createdOrder = await createOrder(payload);
-      navigate(`/orders/${createdOrder.id}`);
+      await updateOrder(id, payload);
+      navigate("/orders");
     } catch (error) {
-      console.error("Failed to create order:", error);
+      console.error("Failed to update order:", error);
       const responseData = error?.response?.data;
       let message = responseData?.message || responseData?.error;
 
@@ -185,7 +199,7 @@ export default function OrderCreatePage() {
         }
       }
 
-      alert(message || "Failed to create order.");
+      alert(message || "Failed to update order.");
     } finally {
       setSubmitting(false);
     }
@@ -195,9 +209,25 @@ export default function OrderCreatePage() {
     return (
       <div className="flex h-64 items-center justify-center text-sm font-medium text-slate-500">
         <div className="flex items-center gap-2">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-          Loading order configuration...
+          <Loader2 className="animate-spin text-indigo-600" size={20} />
+          Loading order details...
         </div>
+      </div>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 pt-8">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {errorMessage}
+        </div>
+        <button
+          onClick={() => navigate("/orders")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-50"
+        >
+          <ArrowLeft size={14} /> Back to Orders
+        </button>
       </div>
     );
   }
@@ -210,7 +240,7 @@ export default function OrderCreatePage() {
             type="button"
             onClick={() => navigate("/orders")}
             disabled={submitting}
-            className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50"
+            className="group inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 cursor-pointer"
           >
             <ArrowLeft
               size={14}
@@ -219,18 +249,17 @@ export default function OrderCreatePage() {
             <span>Back to Orders</span>
           </button>
 
-          <div className="flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50/60 px-3 py-1 text-xs font-medium text-indigo-700">
-            <span className="h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
-            New Draft
+          <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+            Order #{order?.orderNumber || id}
           </div>
         </div>
 
         <div className="mt-4">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Create New Order
+            Edit Order
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Select an order category and configure the required parameters.
+            Update the date and dynamic parameter details for this order.
           </p>
         </div>
       </div>
@@ -239,14 +268,14 @@ export default function OrderCreatePage() {
         <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2 border-b border-slate-100 pb-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-              <FilePlus size={18} />
+              <Edit3 size={18} />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-900">
                 General Information
               </h2>
               <p className="text-xs text-slate-400">
-                Basic classification and issuance date
+                Order classification (Read-only) & issuance date
               </p>
             </div>
           </div>
@@ -254,26 +283,19 @@ export default function OrderCreatePage() {
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Order Type <span className="text-red-500">*</span>
+                Order Type
               </label>
               <div className="relative">
                 <FileText
                   size={16}
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
-                <select
-                  value={orderTypeId}
-                  onChange={handleOrderTypeChange}
-                  disabled={submitting}
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3.5 text-sm text-slate-900 shadow-sm transition-all focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50"
-                >
-                  <option value="">Select order type...</option>
-                  {orderTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name} ({type.code})
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  disabled
+                  value={`${getOrderTypeName()} (${getOrderTypeCode()})`}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-100 py-2.5 pl-9 pr-3.5 text-sm font-medium text-slate-600 cursor-not-allowed"
+                />
               </div>
             </div>
 
@@ -295,67 +317,50 @@ export default function OrderCreatePage() {
                   className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3.5 text-sm text-slate-900 shadow-sm transition-all focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50"
                 />
               </div>
-              <p className="mt-1.5 text-xs text-slate-400">
-                Cannot be set to a future date.
-              </p>
             </div>
           </div>
         </div>
 
-        {selectedOrderType ? (
-          <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
-            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                  <Layers size={18} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    {selectedOrderType.name} Details
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Fill out the form fields for this order action
-                  </p>
-                </div>
+        <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                <Layers size={18} />
               </div>
-              <span className="rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                {selectedOrderType.code}
-              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {getOrderTypeName()} Details
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Modify parameters for this order
+                </p>
+              </div>
             </div>
+            <span className="rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+              {getOrderTypeCode()}
+            </span>
+          </div>
 
-            {renderOrderForm()}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-10 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-400 shadow-xs">
-              <MousePointerClick size={22} />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-800">
-              Select an Order Type
-            </h3>
-            <p className="mt-1 max-w-sm text-xs text-slate-500">
-              Choose an order type from the section above to unlock and configure specific details.
-            </p>
-          </div>
-        )}
+          {renderOrderForm()}
+        </div>
 
         <div className="flex items-center justify-end gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
           <button
             type="button"
             onClick={() => navigate("/orders")}
             disabled={submitting}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
           >
             Cancel
           </button>
 
           <button
             type="submit"
-            disabled={submitting || !selectedOrderType}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={submitting}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           >
-            <Send size={15} />
-            {submitting ? "Creating..." : "Create Order"}
+            <Save size={15} />
+            {submitting ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>

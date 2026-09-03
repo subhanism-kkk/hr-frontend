@@ -19,11 +19,9 @@ export default function BonusForm({ value = {}, onChange }) {
       try {
         setLoading(true);
         setError("");
-        const response = await bonusTypeApi.getAll({
-          page: 0,
-          size: 100,
-        });
-        setBonusTypes(response?.content || response || []);
+        // Call getActiveOptions() instead of getAll() to fetch only active types
+        const response = await bonusTypeApi.getActiveOptions();
+        setBonusTypes(response || []);
       } catch (err) {
         console.error("Failed to load bonus types:", err);
         setError("Failed to load bonus types.");
@@ -95,7 +93,7 @@ export default function BonusForm({ value = {}, onChange }) {
             </option>
             {bonusTypes.map((type) => (
               <option key={type.id} value={type.id}>
-                #{type.id} - {type.name} ({type.code})
+                #{type.id} - {type.name} {type.code ? `(${type.code})` : ""}
               </option>
             ))}
           </select>

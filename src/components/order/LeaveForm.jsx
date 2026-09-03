@@ -12,11 +12,8 @@ export default function LeaveForm({ value = {}, onChange }) {
       try {
         setLoading(true);
         setError("");
-        const response = await leaveTypeApi.getAll({
-          page: 0,
-          size: 100,
-        });
-        setLeaveTypes(response?.content || response || []);
+        const response = await leaveTypeApi.getActiveOptions();
+        setLeaveTypes(Array.isArray(response) ? response : []);
       } catch (err) {
         console.error("Failed to load leave types:", err);
         setError("Failed to load leave types.");

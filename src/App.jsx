@@ -16,6 +16,7 @@ import { ContactTypesPage } from "./pages/settings/ContactTypesPage";
 import { BonusTypesPage } from "./pages/settings/BonusTypesPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderCreatePage from "./pages/OrderCreatePage";
+import OrderEditPage from "./pages/OrderEditPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import StaffingPlansPage from "./pages/StaffingPlansPage";
 import StructuresPage from "./pages/StructuresPage";
@@ -49,6 +50,7 @@ export default function App() {
           {/* Orders */}
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/new" element={<OrderCreatePage />} />
+          <Route path="/orders/:id/edit" element={<OrderEditPage />} />
           <Route path="/orders/:id" element={<OrderDetailsPage />} />
           <Route path="/orders/:id/edit" element={<OrderCreatePage />} />
 

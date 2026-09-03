@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Pencil, Plus, Trash2, Search, RefreshCw, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, Search, RefreshCw, X, Power } from 'lucide-react';
 
 import { orderTypeApi } from '../../api/orderTypeApi';
 import { getApiErrorMessage } from '../../api/axios';
@@ -20,7 +20,11 @@ export function OrderTypesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Automatically trigger search 300ms after user stops typing
+  // Extract status string safely across API convention variants
+  const getStatus = (item) => {
+    return (item?.statusName || item?.status || '').toString().toUpperCase();
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(0);
@@ -77,14 +81,32 @@ export function OrderTypesPage() {
     load();
   };
 
-  const remove = async (id) => {
-    if (!window.confirm('Soft delete this order type?')) {
+  const toggleStatus = async (item) => {
+    try {
+      setError('');
+      const status = getStatus(item);
+      const isActive = status === 'ACTIVE' || item.statusId === 1 || item.isActive;
+
+      if (isActive) {
+        await orderTypeApi.deactivate(item.id);
+      } else {
+        await orderTypeApi.activate(item.id);
+      }
+
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to change order type status.'));
+    }
+  };
+
+  const remove = async (item) => {
+    if (!window.confirm(`Delete order type "${item.name}"?`)) {
       return;
     }
 
     try {
       setError('');
-      await orderTypeApi.softDelete(id);
+      await orderTypeApi.softDelete(item.id);
       await load();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to delete order type.'));
@@ -106,7 +128,7 @@ export function OrderTypesPage() {
 
         <button
           onClick={handleOpenCreate}
-          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-700 shrink-0"
+          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-indigo-700 shrink-0 cursor-pointer"
         >
           <Plus size={18} />
           Add Order Type
@@ -119,7 +141,7 @@ export function OrderTypesPage() {
           <span>{error}</span>
           <button
             onClick={() => setError('')}
-            className="text-red-500 hover:text-red-800 transition-colors"
+            className="text-red-500 hover:text-red-800 transition-colors cursor-pointer"
           >
             <X size={16} />
           </button>
@@ -159,49 +181,86 @@ export function OrderTypesPage() {
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Code</th>
                 <th className="px-6 py-4">Description</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((item) => (
-                <tr
-                  key={item.id}
-                  className="transition-colors hover:bg-slate-50/60"
-                >
-                  <td className="px-6 py-4 font-mono text-xs text-slate-400">
-                    #{item.id}
-                  </td>
-                  <td className="px-6 py-4 font-semibold text-slate-900">
-                    {item.name}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 font-mono text-xs font-semibold text-slate-700">
-                      {item.code}
-                    </span>
-                  </td>
-                  <td className="max-w-md px-6 py-4 text-slate-500 truncate">
-                    {item.description || <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => handleOpenEdit(item)}
-                        title="Edit"
-                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600"
+              {items.map((item) => {
+                const status = getStatus(item);
+                const isActive =
+                  status === 'ACTIVE' ||
+                  item.statusId === 1 ||
+                  item.isActive ||
+                  (!status && !item.isDeleted);
+
+                return (
+                  <tr
+                    key={item.id}
+                    className="transition-colors hover:bg-slate-50/60"
+                  >
+                    <td className="px-6 py-4 font-mono text-xs text-slate-400">
+                      #{item.id}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">
+                      {item.name}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex rounded-lg border border-slate-200 bg-slate-100/80 px-2.5 py-1 font-mono text-xs font-semibold text-slate-700">
+                        {item.code}
+                      </span>
+                    </td>
+                    <td className="max-w-md px-6 py-4 text-slate-500 truncate">
+                      {item.description || <span className="text-slate-300">—</span>}
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          isActive
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
                       >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => remove(item.id)}
-                        title="Delete"
-                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+
+                    {/* Actions Column */}
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-4">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(item)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                        >
+                          <Pencil size={14} />
+                          <span>Edit</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(item)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 cursor-pointer"
+                        >
+                          <Power size={14} />
+                          <span>{isActive ? 'Deactivate' : 'Activate'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => remove(item)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -217,14 +276,14 @@ export function OrderTypesPage() {
           <button
             disabled={page === 0}
             onClick={() => setPage((p) => p - 1)}
-            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 shadow-xs"
+            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 shadow-xs cursor-pointer"
           >
             Previous
           </button>
           <button
             disabled={page + 1 >= totalPages}
             onClick={() => setPage((p) => p + 1)}
-            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 shadow-xs"
+            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 shadow-xs cursor-pointer"
           >
             Next
           </button>
@@ -242,3 +301,5 @@ export function OrderTypesPage() {
     </div>
   );
 }
+
+export default OrderTypesPage;

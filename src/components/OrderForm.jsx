@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
-import { getOrderById, createOrder, updateOrder } from "../api/orderApi";
+import { getOrderById, createOrder, updateOrder } from "../../api/orderApi";
+import { orderTypeApi } from "../../api/orderTypeApi";
 
 export default function OrderForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = Boolean(id);
 
-  const [loading, setLoading] = useState(isEditMode);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeOrderTypes, setActiveOrderTypes] = useState([]);
 
   const [formData, setFormData] = useState({
     orderNumber: "",
@@ -21,29 +23,57 @@ export default function OrderForm() {
   });
 
   useEffect(() => {
-    if (isEditMode) {
-      fetchOrderData();
-    }
-  }, [id]);
+    const initializeForm = async () => {
+      try {
+        setLoading(true);
 
-  const fetchOrderData = async () => {
-    try {
-      setLoading(true);
-      const data = await getOrderById(id);
-      setFormData({
-        orderNumber: data.orderNumber || "",
-        orderTypeId: data.orderTypeId || "",
-        orderDate: data.orderDate || "",
-        statusId: data.statusId || "",
-        note: data.note || "",
-      });
-    } catch (err) {
-      console.error("Failed to fetch order details:", err);
-      setErrorMessage("Could not load order details.");
-    } finally {
-      setLoading(false);
-    }
-  };
+        let typesData = [];
+        try {
+          typesData = await orderTypeApi.getActiveOptions();
+        } catch {
+          const raw = await orderTypeApi.getAll({ size: 100 });
+          typesData = raw?.content || raw || [];
+        }
+
+        const activeTypes = Array.isArray(typesData)
+          ? typesData.filter((t) => {
+              // 1. Exclude soft-deleted items
+              if (t.isDeleted) return false;
+
+              // 2. Check status string (e.g. statusName or status enum)
+              const statusStr = (t.statusName || t.status || "").toString().toUpperCase();
+              if (statusStr) return statusStr === "ACTIVE";
+
+              // 3. Check boolean indicator or numeric status ID
+              if (typeof t.isActive === "boolean") return t.isActive;
+              if (t.statusId !== undefined && t.statusId !== null) return Number(t.statusId) === 1;
+
+              return true;
+            })
+          : [];
+
+        setActiveOrderTypes(activeTypes);
+
+        if (isEditMode) {
+          const orderData = await getOrderById(id);
+          setFormData({
+            orderNumber: orderData.orderNumber || "",
+            orderTypeId: orderData.orderTypeId || "",
+            orderDate: orderData.orderDate || "",
+            statusId: orderData.statusId || "",
+            note: orderData.note || "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to initialize form data:", err);
+        setErrorMessage("Failed to load initial data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeForm();
+  }, [id, isEditMode]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -82,7 +112,6 @@ export default function OrderForm() {
 
   return (
     <div className="min-h-full bg-slate-50 p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate("/orders")}
@@ -102,7 +131,6 @@ export default function OrderForm() {
         </div>
       </div>
 
-      {/* Form Card */}
       <form
         onSubmit={handleSubmit}
         className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
@@ -114,7 +142,6 @@ export default function OrderForm() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Order Number */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Order Number <span className="text-red-500">*</span>
@@ -130,7 +157,6 @@ export default function OrderForm() {
             />
           </div>
 
-          {/* Order Date */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Order Date <span className="text-red-500">*</span>
@@ -145,7 +171,6 @@ export default function OrderForm() {
             />
           </div>
 
-          {/* Order Type */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Order Type <span className="text-red-500">*</span>
@@ -158,16 +183,14 @@ export default function OrderForm() {
               className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer bg-white"
             >
               <option value="">Select Order Type</option>
-              <option value="1">Staffing Plan (STF)</option>
-              <option value="2">Appointment (APT)</option>
-              <option value="3">Bonus (BNS)</option>
-              <option value="4">Salary Adjustment (SAL)</option>
-              <option value="5">Transfer (TRF)</option>
-              <option value="6">Promotion (PRO)</option>
+              {activeOrderTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name} {type.code ? `(${type.code})` : ""}
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Status */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Status <span className="text-red-500">*</span>
@@ -187,7 +210,6 @@ export default function OrderForm() {
           </div>
         </div>
 
-        {/* Note / Description */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Notes / Details
@@ -202,7 +224,6 @@ export default function OrderForm() {
           />
         </div>
 
-        {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
           <button
             type="button"
