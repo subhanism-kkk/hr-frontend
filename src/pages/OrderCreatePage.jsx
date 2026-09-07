@@ -48,32 +48,11 @@ export default function OrderCreatePage() {
   useEffect(() => {
     const loadOrderTypes = async () => {
       try {
-        let response;
-        try {
-          response = await orderTypeApi.getActiveOptions();
-        } catch {
-          response = await orderTypeApi.getAll({
-            page: 0,
-            size: 100,
-          });
-        }
-
-        const list = Array.isArray(response) ? response : response?.content || [];
-
-        // Strictly filter for active order types
-        const activeTypes = list.filter((type) => {
-          if (type.isDeleted) return false;
-
-          const statusStr = (type.statusName || type.status || "").toString().toUpperCase();
-          if (statusStr) return statusStr === "ACTIVE";
-
-          if (typeof type.isActive === "boolean") return type.isActive === true;
-          if (type.statusId !== undefined && type.statusId !== null) return Number(type.statusId) === 1;
-
-          return true;
+        const response = await orderTypeApi.getAll({
+          page: 0,
+          size: 100,
         });
-
-        setOrderTypes(activeTypes);
+        setOrderTypes(response?.content || []);
       } catch (error) {
         console.error("Failed to load order types:", error);
       } finally {
@@ -204,6 +183,7 @@ export default function OrderCreatePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-12">
+      {/* Redesigned Header Section */}
       <div className="border-b border-slate-200 pb-5">
         <div className="flex items-center justify-between">
           <button
@@ -236,6 +216,7 @@ export default function OrderCreatePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Section 1: General Information */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2 border-b border-slate-100 pb-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
@@ -252,6 +233,7 @@ export default function OrderCreatePage() {
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
+            {/* Order Type */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Order Type <span className="text-red-500">*</span>
@@ -277,6 +259,7 @@ export default function OrderCreatePage() {
               </div>
             </div>
 
+            {/* Order Date */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Order Date <span className="text-red-500">*</span>
@@ -302,6 +285,7 @@ export default function OrderCreatePage() {
           </div>
         </div>
 
+        {/* Section 2: Specific Order Details OR Dynamic Placeholder */}
         {selectedOrderType ? (
           <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
             <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
@@ -339,6 +323,7 @@ export default function OrderCreatePage() {
           </div>
         )}
 
+        {/* Action Buttons Footer */}
         <div className="flex items-center justify-end gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
           <button
             type="button"

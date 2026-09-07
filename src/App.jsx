@@ -20,6 +20,7 @@ import OrderEditPage from "./pages/OrderEditPage";
 import OrderDetailsPage from "./pages/OrderDetailsPage";
 import StaffingPlansPage from "./pages/StaffingPlansPage";
 import StructuresPage from "./pages/StructuresPage";
+import DeletedPersonsPage from "./pages/DeletedPersonsPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/MainLayout";
 
@@ -52,7 +53,8 @@ export default function App() {
           <Route path="/orders/new" element={<OrderCreatePage />} />
           <Route path="/orders/:id/edit" element={<OrderEditPage />} />
           <Route path="/orders/:id" element={<OrderDetailsPage />} />
-          <Route path="/orders/:id/edit" element={<OrderCreatePage />} />
+
+          <Route path="/persons/deleted" element={<DeletedPersonsPage />} />
 
           {/* Settings */}
           <Route path="/statuses" element={<StatusesPage />} />

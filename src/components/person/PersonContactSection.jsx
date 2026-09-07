@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { Award, Pencil, Plus, Power, Trash2 } from 'lucide-react';
 import { contactApi, contactTypeApi } from '../../api/personSubServices';
 import { getApiErrorMessage } from '../../api/axios';
 import { contactSchema } from '../../schemas/personSchema';
@@ -112,6 +112,16 @@ export function PersonContactSection({ personId }) {
     }
   };
 
+  const setPrimary = async (id) => {
+    try {
+      setError('');
+      await contactApi.setPrimary(id);
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to set primary contact.'));
+    }
+  };
+
   const remove = async (id) => {
     if (!window.confirm('Soft delete this contact?')) return;
     try {
@@ -212,7 +222,12 @@ export function PersonContactSection({ personId }) {
                       {type?.name || `Contact type #${item.contactTypeId}`} · {item.statusName || status}
                     </p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-3">
+                    {!item.isPrimary && isActive && (
+                      <button onClick={() => setPrimary(item.id)} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                        <Award size={14} /> Set Primary
+                      </button>
+                    )}
                     <button onClick={() => edit(item)} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600"><Pencil size={14} /> Edit</button>
                     <button onClick={() => toggleStatus(item)} className={`inline-flex items-center gap-1 text-xs font-medium ${isActive ? 'text-amber-600' : 'text-emerald-600'}`}>
                       <Power size={14} /> {isActive ? 'Deactivate' : 'Activate'}

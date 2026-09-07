@@ -12,6 +12,17 @@ export function PersonAddressSection({ personId }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const isAddressActive = (statusName) => {
+    if (!statusName) return false;
+    const normalized = String(statusName).trim().toUpperCase();
+    return normalized === 'ACTIVE' || normalized === '1';
+  };
+
+  const isAddressDeleted = (statusName) => {
+    if (!statusName) return false;
+    return String(statusName).trim().toUpperCase() === 'DELETED';
+  };
+
   const load = async () => {
     try {
       setLoading(true);
@@ -70,7 +81,7 @@ export function PersonAddressSection({ personId }) {
   const toggleStatus = async (item) => {
     try {
       setError('');
-      if (item.statusName === 'ACTIVE') {
+      if (isAddressActive(item.statusName)) {
         await addressApi.deactivate(item.id);
       } else {
         await addressApi.activate(item.id);
@@ -126,14 +137,14 @@ export function PersonAddressSection({ personId }) {
         <div className="mt-3 flex gap-2">
           <button
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 cursor-pointer"
           >
             <Plus size={16} />
             {saving ? 'Saving...' : editingId ? 'Update Address' : 'Add Address'}
           </button>
 
           {editingId && (
-            <button type="button" onClick={reset} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-white">
+            <button type="button" onClick={reset} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-white cursor-pointer">
               Cancel
             </button>
           )}
@@ -148,37 +159,67 @@ export function PersonAddressSection({ personId }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {addresses.map((item) => (
-            <div key={item.id} className={`rounded-xl border p-4 ${item.statusName === 'ACTIVE' ? 'border-slate-200' : 'border-amber-200 bg-amber-50/40'}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="whitespace-pre-wrap text-sm text-slate-800">{item.address}</p>
-                  <p className="mt-2 text-xs text-slate-400">Address #{item.id}</p>
-                </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.statusName === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                  {item.statusName}
-                </span>
-              </div>
+          {addresses.map((item) => {
+            const active = isAddressActive(item.statusName);
+            const deleted = isAddressDeleted(item.statusName);
 
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-                <button onClick={() => edit(item)} className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800">
-                  <Pencil size={14} /> Edit
-                </button>
-                <button onClick={() => toggleStatus(item)} className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600 hover:text-amber-800">
-                  <Power size={14} /> {item.statusName === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                </button>
-                {item.statusName === 'DELETED' ? (
-                  <button onClick={() => restore(item.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                    <RotateCcw size={14} /> Restore
+            return (
+              <div
+                key={item.id}
+                className={`rounded-xl border p-4 ${
+                  active ? 'border-slate-200' : 'border-amber-200 bg-amber-50/40'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="whitespace-pre-wrap text-sm text-slate-800">{item.address}</p>
+                    <p className="mt-2 text-xs text-slate-400">Address #{item.id}</p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {item.statusName}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                  <button
+                    onClick={() => edit(item)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                  >
+                    <Pencil size={14} /> Edit
                   </button>
-                ) : (
-                  <button onClick={() => remove(item.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
-                    <Trash2 size={14} /> Delete
+
+                  <button
+                    onClick={() => toggleStatus(item)}
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+                      active ? 'text-amber-600 hover:text-amber-800' : 'text-emerald-600 hover:text-emerald-800'
+                    }`}
+                  >
+                    <Power size={14} /> {active ? 'Deactivate' : 'Activate'}
                   </button>
-                )}
+
+                  {deleted ? (
+                    <button
+                      onClick={() => restore(item.id)}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 cursor-pointer"
+                    >
+                      <RotateCcw size={14} /> Restore
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => remove(item.id)}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 cursor-pointer"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

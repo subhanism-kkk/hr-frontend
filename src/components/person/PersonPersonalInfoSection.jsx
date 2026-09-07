@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { personalInfoApi } from '../../api/personSubServices';
 import { getApiErrorMessage } from '../../api/axios';
 import { personalInfoSchema } from '../../schemas/personSchema';
@@ -86,33 +86,6 @@ export function PersonPersonalInfoSection({ personId }) {
     setError('');
   };
 
-  const toggleStatus = async () => {
-    try {
-      setError('');
-      if (info.statusName === 'ACTIVE') {
-        await personalInfoApi.deactivate(info.id);
-      } else {
-        await personalInfoApi.activate(info.id);
-      }
-      await load();
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to change status.'));
-    }
-  };
-
-  const remove = async () => {
-    if (!window.confirm('Soft delete this personal information record?')) return;
-
-    try {
-      setError('');
-      await personalInfoApi.softDelete(info.id);
-      setInfo(null);
-      setFormData(emptyForm);
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Failed to delete personal information.'));
-    }
-  };
-
   if (loading) return <p className="text-sm text-slate-500">Loading personal information...</p>;
 
   return (
@@ -185,8 +158,6 @@ export function PersonPersonalInfoSection({ personId }) {
 
           <div className="flex gap-4 border-t border-slate-100 px-5 py-3">
             <button onClick={startEdit} className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600"><Pencil size={14} /> Edit</button>
-            <button onClick={toggleStatus} className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600"><Power size={14} /> {info.statusName === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
-            <button onClick={remove} className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600"><Trash2 size={14} /> Delete</button>
           </div>
         </div>
       )}

@@ -30,26 +30,26 @@ export default function OrdersPage() {
   const [pageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
 
-  const loadOrders = useCallback(async () => {
-    try {
-      setLoading(true);
+ const loadOrders = useCallback(async () => {
+  try {
+    setLoading(true);
 
-      const response = await getOrders({
-        page,
-        size: pageSize,
-        keyword: searchQuery.trim() || undefined,
-        orderTypeCode: selectedType !== "ALL" ? selectedType : undefined,
-        statusCode: selectedStatus !== "ALL" ? selectedStatus : undefined,
-      });
+    const response = await getOrders({
+      page,
+      size: pageSize,
+      keyword: searchQuery.trim() || undefined,
+      orderTypeCode: selectedType !== "ALL" ? selectedType : undefined,
+      statusCode: selectedStatus !== "ALL" ? selectedStatus : undefined,
+    });
 
-      setOrders(response.content || []);
-      setTotalPages(response.totalPages || 0);
-    } catch (error) {
-      console.error("Failed to load orders:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, searchQuery, selectedStatus, selectedType]);
+    setOrders(response.content || []);
+    setTotalPages(response.totalPages || 0);
+  } catch (error) {
+    console.error("Failed to load orders:", error);
+  } finally {
+    setLoading(false);
+  }
+}, [page, pageSize, searchQuery, selectedStatus, selectedType]);
 
   useEffect(() => {
     loadOrders();
@@ -113,8 +113,7 @@ export default function OrdersPage() {
     return "bg-indigo-50 text-indigo-700 border-indigo-200";
   };
 
-  const isFiltered =
-    searchQuery || selectedStatus !== "ALL" || selectedType !== "ALL";
+  const isFiltered = searchQuery || selectedStatus !== "ALL" || selectedType !== "ALL";
 
   return (
     <div className="min-h-full bg-slate-50 p-6 lg:p-8 space-y-6">
@@ -128,7 +127,7 @@ export default function OrdersPage() {
         </div>
 
         <button
-          onClick={() => navigate("/orders/create")}
+          onClick={() => navigate("/orders/new")}
           className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 transition-colors cursor-pointer"
         >
           <Plus size={18} />
@@ -172,9 +171,6 @@ export default function OrdersPage() {
                   <option value="SAL">Salary Adjustment (SAL)</option>
                   <option value="TRF">Transfer (TRF)</option>
                   <option value="PRO">Promotion (PRO)</option>
-                  <option value="LEV">Leave (LEV)</option>
-                  <option value="DIS">Dismissal (DIS)</option>
-                  <option value="STR">Structure (STR)</option>
                 </select>
               </div>
 
@@ -276,7 +272,7 @@ export default function OrdersPage() {
                         <button
                           onClick={() => navigate(`/orders/${order.id}/edit`)}
                           className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-amber-600 transition-colors cursor-pointer"
-                          title="Edit Order"
+                          title="Edit"
                         >
                           <Pencil size={16} />
                         </button>
@@ -284,7 +280,7 @@ export default function OrdersPage() {
                         <button
                           onClick={() => handleDelete(order.id)}
                           className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600 transition-colors cursor-pointer"
-                          title="Delete Order"
+                          title="Delete"
                         >
                           <Trash2 size={16} />
                         </button>

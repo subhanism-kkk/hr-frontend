@@ -56,3 +56,18 @@ export const softDeletePerson = async (id) => {
 export const restorePerson = async (id) => {
   await hrmsServer.patch(`/persons/${id}/restore`);
 };
+
+export const fetchDeletedPersons = async ({
+  page = 0,
+  size = 10,
+  sort = 'id,asc',
+} = {}) => {
+  const response = await hrmsServer.get('/persons/deleted', {
+    params: {
+      page,
+      size,
+      sort,
+    },
+  });
+  return response.data;
+};

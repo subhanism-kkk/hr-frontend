@@ -97,10 +97,23 @@ export function PersonPhotoSection({ personId }) {
     }
   };
 
+  const isPhotoActive = (statusName) => {
+    if (!statusName) return false;
+    const normalized = String(statusName).trim().toUpperCase();
+    return normalized === 'ACTIVE' || normalized === '1';
+  };
+
   const toggleStatus = async (photo) => {
     try {
-      if (photo.statusName === 'ACTIVE') await photoApi.deactivate(photo.id);
-      else await photoApi.activate(photo.id);
+      setError('');
+      const isActive = isPhotoActive(photo.statusName);
+
+      if (isActive) {
+        await photoApi.deactivate(photo.id);
+      } else {
+        await photoApi.activate(photo.id);
+      }
+
       await load();
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to change photo status.'));
@@ -178,36 +191,45 @@ export function PersonPhotoSection({ personId }) {
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No photos found.</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {photos.map((photo) => (
-            <div key={photo.id} className="rounded-xl border border-slate-200 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="break-all text-sm font-medium text-slate-800">{photo.filePath}</p>
-                  <p className="mt-1 text-xs text-slate-400">Photo #{photo.id} · {photo.statusName}</p>
-                </div>
-                {photo.isMain && (
-                  <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">Main</span>
-                )}
-              </div>
+          {photos.map((photo) => {
+            const active = isPhotoActive(photo.statusName);
 
-              <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-100 pt-3">
-                {!photo.isMain && (
-                  <button onClick={() => setAsMain(photo.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600">
-                    <Star size={14} /> Set Main
+            return (
+              <div key={photo.id} className="rounded-xl border border-slate-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-all text-sm font-medium text-slate-800">{photo.filePath}</p>
+                    <p className="mt-1 text-xs text-slate-400">Photo #{photo.id} · {photo.statusName}</p>
+                  </div>
+                  {photo.isMain && (
+                    <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">Main</span>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-100 pt-3">
+                  {!photo.isMain && (
+                    <button onClick={() => setAsMain(photo.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600">
+                      <Star size={14} /> Set Main
+                    </button>
+                  )}
+                  <button onClick={() => edit(photo)} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <Pencil size={14} /> Edit
                   </button>
-                )}
-                <button onClick={() => edit(photo)} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-                  <Pencil size={14} /> Edit
-                </button>
-                <button onClick={() => toggleStatus(photo)} className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
-                  <Power size={14} /> {photo.statusName === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                </button>
-                <button onClick={() => remove(photo.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
-                  <Trash2 size={14} /> Delete
-                </button>
+                  <button
+                    onClick={() => toggleStatus(photo)}
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                      active ? 'text-amber-600 hover:text-amber-700' : 'text-emerald-600 hover:text-emerald-700'
+                    }`}
+                  >
+                    <Power size={14} /> {active ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button onClick={() => remove(photo.id)} className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

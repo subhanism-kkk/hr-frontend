@@ -17,6 +17,7 @@ export const contactApi = {
   getById: (id) => hrmsServer.get(`/person-contacts/${id}`),
   getAll: (params) => hrmsServer.get('/person-contacts', { params }),
   activate: (id) => hrmsServer.patch(`/person-contacts/${id}/activate`),
+  setPrimary: (id) => hrmsServer.patch(`/person-contacts/${id}/primary`),
   deactivate: (id) => hrmsServer.patch(`/person-contacts/${id}/deactivate`),
   softDelete: (id) => hrmsServer.delete(`/person-contacts/${id}`),
   restore: (id) => hrmsServer.patch(`/person-contacts/${id}/restore`),
